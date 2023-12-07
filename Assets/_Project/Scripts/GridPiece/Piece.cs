@@ -54,5 +54,22 @@ namespace MatchThreeGame._Project.Scripts.GridPiece
             Type = type;
             GridRef = gridRef;
         }
+
+        private void OnMouseEnter()
+        {
+            Debug.Log("Destination" + _x + ',' + _y);
+            GridRef.Destination(this);
+        }
+
+        private void OnMouseUp()
+        {
+            GridRef.Release();
+        }
+
+        private void OnMouseDown()
+        {
+            Debug.Log("Source" + _x + ',' + _y);
+            GridRef.Source(this);
+        }
     }
 }

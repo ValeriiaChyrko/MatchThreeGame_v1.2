@@ -3,6 +3,8 @@
     public enum PieceType
     {
         NORMAL,
+        EMPTY,
+        OBSTACLE,
         COUNT,
     }
 }
