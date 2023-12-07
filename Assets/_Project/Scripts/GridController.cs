@@ -1,5 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using JetBrains.Annotations;
 using MatchThreeGame._Project.Scripts.Enums;
 using MatchThreeGame._Project.Scripts.GridPiece;
 using UnityEngine;
@@ -66,10 +68,18 @@ namespace MatchThreeGame._Project.Scripts
 
         private IEnumerator Fill()
         {
-            while (FillStep())
+            var needsRefill = true;
+            while (needsRefill)
             {
-                _inverse = !_inverse;
                 yield return new WaitForSeconds(fillTime);
+                
+                while (FillStep())
+                {
+                    _inverse = !_inverse;
+                    yield return new WaitForSeconds(fillTime);
+                }
+
+                needsRefill = ClearAllValidMatches();
             }
         }
 
@@ -93,7 +103,7 @@ namespace MatchThreeGame._Project.Scripts
                     {
                         Destroy(pieceBelow.gameObject);
 
-                        piece.MovablePiece.Move(x, y + 1, fillTime);
+                        piece.MovableComponent.Move(x, y + 1, fillTime);
                         _pieces[x, y + 1] = piece;
                         SpawnNewPiece(x, y, PieceType.EMPTY);
 
@@ -130,7 +140,7 @@ namespace MatchThreeGame._Project.Scripts
                             if (hasPieceAbove) continue;
                                             
                             Destroy(diagPiece.gameObject);
-                            piece.MovablePiece.Move(diagX, y + 1, fillTime);
+                            piece.MovableComponent.Move(diagX, y + 1, fillTime);
                             _pieces[diagX, y + 1] = piece;
                             SpawnNewPiece(x, y, PieceType.EMPTY);
                             movePiece = true;
@@ -152,8 +162,8 @@ namespace MatchThreeGame._Project.Scripts
 
                 _pieces[x, 0] = newPiece.GetComponent<Piece>();
                 _pieces[x, 0].Init(x, -1, PieceType.NORMAL, this);
-                _pieces[x, 0].MovablePiece.Move(x, 0, fillTime);
-                _pieces[x, 0].ColourPiece.ColourType = (ColourType)Random.Range(0, _pieces[x, 0].ColourPiece.ColourAmount);
+                _pieces[x, 0].MovableComponent.Move(x, 0, fillTime);
+                _pieces[x, 0].ColourComponent.ColourType = (ColourType)Random.Range(0, _pieces[x, 0].ColourComponent.ColourAmount);
 
                 movePiece = true;
             }
@@ -171,14 +181,26 @@ namespace MatchThreeGame._Project.Scripts
         {
             if (!source.IsMovable() || !destination.IsMovable()) return;
             
-            var sourceX = source.X;
-            var sourceY = source.Y;
-                
             _pieces[source.X, source.Y] = destination;
             _pieces[destination.X, destination.Y] = source;
+            
+            if (GetMatch(source, destination.X, destination.Y) != null
+                || GetMatch(destination, source.X, source.Y) != null)
+            {
+                var sourceX = source.X;
+                var sourceY = source.Y;
                 
-            source.MovablePiece.Move(destination.X, destination.Y, fillTime);
-            destination.MovablePiece.Move(sourceX, sourceY, fillTime);
+                source.MovableComponent.Move(destination.X, destination.Y, fillTime);
+                destination.MovableComponent.Move(sourceX, sourceY, fillTime);
+
+                ClearAllValidMatches();
+                StartCoroutine(Fill());
+            }
+            else
+            {
+                _pieces[source.X, source.Y] = source;
+                _pieces[destination.X, destination.Y] = destination;
+            }
         }
 
         public void Source(Piece piece)
@@ -195,6 +217,172 @@ namespace MatchThreeGame._Project.Scripts
         {
             if (IsAdjacent(_source, _destination))
                 SwapPieces(_source, _destination);
+        }
+
+        [CanBeNull]
+        private List<Piece> GetMatch(Piece piece, int newX, int newY)
+        {
+            if (!piece.IsColour()) return null;
+            var colour = piece.ColourComponent.ColourType;
+
+            var horizontalPieces = new List<Piece>();
+            var verticalPieces = new List<Piece>();
+            var matchingPieces = new List<Piece>();
+                
+            horizontalPieces.Add(piece);
+            for (var dir = 0; dir <= 1; dir++)
+            {
+                for (var xOffset = 1; xOffset < xDim; xOffset++)
+                {
+                    int x;
+
+                    if (dir == 0)
+                        x = newX - xOffset;
+                    else
+                        x = newX + xOffset;
+
+                    if (x < 0 || x >= xDim)
+                        break;
+
+                    if (_pieces[x, newY].IsColour() && _pieces[x, newY].ColourComponent.ColourType == colour)
+                        horizontalPieces.Add(_pieces[x, newY]);
+                    else
+                        break;
+                }
+            }
+
+            if (horizontalPieces.Count >= 3)
+                matchingPieces.AddRange(horizontalPieces);
+
+            if (horizontalPieces.Count >= 3)
+            {
+                foreach (var t in horizontalPieces)
+                {
+                    for (var dir = 0; dir < 1; dir++)
+                    {
+                        for (var yOffset = 1; yOffset < yDim; yOffset++)
+                        {
+                            int y;
+
+                            if (dir == 0)
+                                y = newY - yOffset;
+                            else
+                                y = newY + yOffset;
+
+                            if (y < 0 || y >= yDim) break;
+
+                            if (_pieces[t.X, y].IsColour()
+                                && _pieces[t.X, y].ColourComponent.ColourType == colour)
+                                verticalPieces.Add(_pieces[t.X, y]);
+                            else
+                                break;
+                        }
+                    }
+                    if (verticalPieces.Count < 2)
+                        verticalPieces.Clear();
+                    else
+                    {
+                        matchingPieces.AddRange(verticalPieces);
+                        break;
+                    }
+                }
+            }
+
+            if (matchingPieces.Count >= 3)
+                return matchingPieces;
+                
+            horizontalPieces.Clear();
+            verticalPieces.Clear();
+            verticalPieces.Add(piece);
+            for (var dir = 0; dir <= 1; dir++)
+            {
+                for (var yOffset = 1; yOffset < yDim; yOffset++)
+                {
+                    int y;
+
+                    if (dir == 0)
+                        y = newY - yOffset;
+                    else
+                        y = newY + yOffset;
+
+                    if (y < 0 || y >= yDim)
+                        break;
+
+                    if (_pieces[newX, y].IsColour() && _pieces[newX, y].ColourComponent.ColourType == colour)
+                        verticalPieces.Add(_pieces[newX, y]);
+                    else
+                        break;
+                }
+            }
+                
+            if (verticalPieces.Count >= 3)
+                matchingPieces.AddRange(verticalPieces);
+                
+            if (verticalPieces.Count >= 3)
+            {
+                for (var i = 0; i < verticalPieces.Count; i++)
+                {
+                    for (var dir = 0; dir < 1; dir++)
+                    {
+                        for (var xOffset = 1; xOffset < xDim; xOffset++)
+                        {
+                            int x;
+
+                            if (dir == 0)
+                                x = newX - xOffset;
+                            else
+                                x = newX + xOffset;
+
+                            if (x < 0 || x >= xDim) break;
+
+                            if (_pieces[x, verticalPieces[i].Y].IsColour()
+                                && _pieces[x, verticalPieces[i].Y].ColourComponent.ColourType == colour)
+                                verticalPieces.Add(_pieces[x, verticalPieces[i].Y]);
+                            else
+                                break;
+                        }
+                    }
+                    if (horizontalPieces.Count < 2)
+                        horizontalPieces.Clear();
+                    else
+                    {
+                        matchingPieces.AddRange(horizontalPieces);
+                        break;
+                    }
+                }
+            }
+            return matchingPieces.Count >= 3 ? matchingPieces : null;
+        }
+
+        private bool ClearAllValidMatches()
+        {
+            var needsRefill = false;
+
+            for (var y = 0; y < yDim; y++)
+            {
+                for (var x = 0; x < xDim; x++)
+                {
+                    if (!_pieces[x, y].IsClearable()) continue;
+                    var match = GetMatch(_pieces[x, y], x, y);
+
+                    if (match == null) continue;
+                    foreach (var t in match.Where(t => ClearPiece(t.X, t.Y)))
+                        needsRefill = true;
+                }
+            }
+
+            return needsRefill;
+        }
+
+        private bool ClearPiece(int x, int y)
+        {
+            if (!_pieces[x, y].IsClearable() || _pieces[x, y].ClearableComponent.IsBeingCleared) return false;
+            
+            _pieces[x, y].ClearableComponent.Clear();
+            SpawnNewPiece(x, y, PieceType.EMPTY);
+
+            return true;
+
         }
     }
 }

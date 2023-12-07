@@ -1,4 +1,3 @@
-using System;
 using MatchThreeGame._Project.Scripts.Enums;
 using UnityEngine;
 
@@ -36,15 +35,20 @@ namespace MatchThreeGame._Project.Scripts.GridPiece
         public PieceType Type { get; private set; }
         public GridController GridRef { get; private set; }
 
-        public MovablePiece MovablePiece { get; private set; }
-        public bool IsMovable() => MovablePiece != null;
-        public ColourPiece ColourPiece { get; private set; }
-        public bool IsColour() => ColourPiece != null;
+        public MovablePiece MovableComponent { get; private set; }
+        public bool IsMovable() => MovableComponent != null;
+        
+        public ColourPiece ColourComponent { get; private set; }
+        public bool IsColour() => ColourComponent != null;
+        
+        public ClearablePiece ClearableComponent { get; private set; }
+        public bool IsClearable() => ClearableComponent != null;
 
         private void Awake()
         {
-            MovablePiece = GetComponent<MovablePiece>();
-            ColourPiece = GetComponent<ColourPiece>();
+            MovableComponent = GetComponent<MovablePiece>();
+            ColourComponent = GetComponent<ColourPiece>();
+            ClearableComponent = GetComponent<ClearablePiece>();
         }
 
         public void Init(int x, int y, PieceType type, GridController gridRef)
@@ -57,7 +61,6 @@ namespace MatchThreeGame._Project.Scripts.GridPiece
 
         private void OnMouseEnter()
         {
-            Debug.Log("Destination" + _x + ',' + _y);
             GridRef.Destination(this);
         }
 
@@ -68,7 +71,6 @@ namespace MatchThreeGame._Project.Scripts.GridPiece
 
         private void OnMouseDown()
         {
-            Debug.Log("Source" + _x + ',' + _y);
             GridRef.Source(this);
         }
     }
