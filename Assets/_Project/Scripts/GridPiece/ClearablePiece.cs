@@ -15,7 +15,7 @@ namespace MatchThreeGame._Project.Scripts.GridPiece
             Piece = GetComponent<Piece>();
         }
 
-        public void Clear()
+        public virtual void Clear()
         {
             IsBeingCleared = true;
             StartCoroutine(ClearCoroutine());

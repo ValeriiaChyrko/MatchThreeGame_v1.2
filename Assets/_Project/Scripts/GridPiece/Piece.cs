@@ -5,6 +5,8 @@ namespace MatchThreeGame._Project.Scripts.GridPiece
 {
     public class Piece : MonoBehaviour
     {
+        [SerializeField] private int score;
+        public int Score => score;
         private int _x;
         public int X
         {

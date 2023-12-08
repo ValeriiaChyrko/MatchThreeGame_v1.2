@@ -4,6 +4,7 @@ using System.Linq;
 using JetBrains.Annotations;
 using MatchThreeGame._Project.Scripts.Enums;
 using MatchThreeGame._Project.Scripts.GridPiece;
+using Unity.VisualScripting;
 using UnityEngine;
 
 namespace MatchThreeGame._Project.Scripts
@@ -13,7 +14,7 @@ namespace MatchThreeGame._Project.Scripts
         [SerializeField] private int xDim;
         [SerializeField] private int yDim;
         [SerializeField] private float fillTime;
-        
+
         [SerializeField] private PiecePrefab[] piecePrefabs;
         [SerializeField] private GameObject backgroundPrefab;
 
@@ -42,12 +43,9 @@ namespace MatchThreeGame._Project.Scripts
 
             _pieces = new Piece[xDim, yDim];
             for (var i = 0; i < xDim; i++)
-                for (var j = 0; j < yDim; j++)
-                    SpawnNewPiece(i, j, PieceType.EMPTY);
-            
-            Destroy(_pieces[2, 2].gameObject);
-            SpawnNewPiece(2, 2, PieceType.OBSTACLE);
-            
+            for (var j = 0; j < yDim; j++)
+                SpawnNewEmptyPiece(i, j);
+
             StartCoroutine(Fill());
         }
 
@@ -57,33 +55,51 @@ namespace MatchThreeGame._Project.Scripts
             return new Vector2(position.x - xDim / 2.0f + x, position.y + yDim / 2.0f - y);
         }
 
-        private void SpawnNewPiece(int x, int y, PieceType type)
+        private Piece SpawnNewPiece(int x, int y, PieceType type)
         {
             var newPiece = Instantiate(_piecePrefabDictionary[type], GetWorldPosition(x, y), Quaternion.identity);
             newPiece.transform.parent = transform;
 
             _pieces[x, y] = newPiece.GetComponent<Piece>();
             _pieces[x, y].Init(x, y, type, this);
+
+            return _pieces[x, y];
         }
 
         private IEnumerator Fill()
         {
-            var needsRefill = true;
-            while (needsRefill)
+            while (true)
             {
-                yield return new WaitForSeconds(fillTime);
-                
+                yield return new WaitForSeconds(fillTime * 2.0f);
+
                 while (FillStep())
                 {
                     _inverse = !_inverse;
                     yield return new WaitForSeconds(fillTime);
                 }
 
-                needsRefill = ClearAllValidMatches();
+                if (!ClearAllValidMatches()) break;
             }
+            
+            Destroy(_pieces[2, 2].gameObject);
+            SpawnNewPiece(2, 2, PieceType.OBSTACLE);
+            Destroy(_pieces[3, 3].gameObject);
+            SpawnNewPiece(3, 3, PieceType.RAINBOW);
+            Destroy(_pieces[3, 4].gameObject);
+            SpawnNewPiece(3, 4, PieceType.RAINBOW);
         }
 
         private bool FillStep()
+        {
+            var movePiece = false;
+
+            movePiece |= MovePiecesDown();
+            movePiece |= FillTopRow();
+
+            return movePiece;
+        }
+
+        private bool MovePiecesDown()
         {
             var movePiece = false;
 
@@ -94,76 +110,107 @@ namespace MatchThreeGame._Project.Scripts
                     var x = loopX;
                     if (_inverse) x = xDim - 1 - loopX;
 
-                    var piece = _pieces[x, y];
-
-                    if (!piece.IsMovable()) continue;
-                    var pieceBelow = _pieces[x, y + 1];
-
-                    if (pieceBelow.Type == PieceType.EMPTY)
-                    {
-                        Destroy(pieceBelow.gameObject);
-
-                        piece.MovableComponent.Move(x, y + 1, fillTime);
-                        _pieces[x, y + 1] = piece;
-                        SpawnNewPiece(x, y, PieceType.EMPTY);
-
-                        movePiece = true;
-                    } 
-                    else 
-                    {
-                        for (var diag = -1; diag <= 1; diag++)
-                        {
-                            if (diag == 0) continue;
-                                
-                            var diagX = x + diag;
-
-                            if (_inverse)
-                                diagX = x - diag;
-
-                            if (diagX < 0 || diagX >= xDim) continue;
-                            var diagPiece = _pieces[diagX, y + 1];
-
-                            if (diagPiece.Type != PieceType.EMPTY) continue;
-                            var hasPieceAbove = true;
-
-                            for (var aboveY = y; aboveY >= 0; aboveY--)
-                            {
-                                var pieceAbove = _pieces[diagX, aboveY];
-
-                                if (pieceAbove.IsMovable()) break;
-                                if (pieceAbove.IsMovable() || pieceAbove.Type == PieceType.EMPTY) continue;
-                                                
-                                hasPieceAbove = false;
-                                break;
-                            }
-
-                            if (hasPieceAbove) continue;
-                                            
-                            Destroy(diagPiece.gameObject);
-                            piece.MovableComponent.Move(diagX, y + 1, fillTime);
-                            _pieces[diagX, y + 1] = piece;
-                            SpawnNewPiece(x, y, PieceType.EMPTY);
-                            movePiece = true;
-                            break;
-                        }
-                    }
+                    movePiece |= TryMovePieceDown(x, y);
                 }
             }
+
+            return movePiece;
+        }
+
+        private bool TryMovePieceDown(int x, int y)
+        {
+            var movePiece = false;
+            var piece = _pieces[x, y];
+
+            if (!piece.IsMovable()) return false;
+
+            var pieceBelow = _pieces[x, y + 1];
+
+            if (pieceBelow.Type == PieceType.EMPTY)
+            {
+                Destroy(pieceBelow.gameObject);
+
+                piece.MovableComponent.Move(x, y + 1, fillTime);
+                _pieces[x, y + 1] = piece;
+                SpawnNewEmptyPiece(x, y);
+
+                movePiece = true;
+            }
+            else
+            {
+                movePiece |= TryMovePieceDiagonally(piece, x, y);
+            }
+
+            return movePiece;
+        }
+
+        private bool TryMovePieceDiagonally(Piece piece, int x, int y)
+        {
+            var movePiece = false;
+
+            for (var diag = -1; diag <= 1; diag++)
+            {
+                if (diag == 0) continue;
+                var diagX = x + diag;
+
+                if (_inverse) diagX = x - diag;
+
+                if (diagX < 0 || diagX >= xDim) continue;
+                var diagPiece = _pieces[diagX, y + 1];
+
+                if (diagPiece.Type != PieceType.EMPTY) continue;
+                var hasPieceAbove = HasPieceAbove(diagX, y);
+
+                if (!hasPieceAbove)
+                {
+                    Destroy(diagPiece.gameObject);
+                    piece.MovableComponent.Move(diagX, y + 1, fillTime);
+                    _pieces[diagX, y + 1] = piece;
+                    SpawnNewEmptyPiece(x, y);
+                    movePiece = true;
+                    break;
+                }
+            }
+
+            return movePiece;
+        }
+
+        private bool HasPieceAbove(int x, int y)
+        {
+            for (var aboveY = y; aboveY >= 0; aboveY--)
+            {
+                var pieceAbove = _pieces[x, aboveY];
+
+                if (pieceAbove.IsMovable()) break;
+                if (pieceAbove.IsMovable() || pieceAbove.Type == PieceType.EMPTY) continue;
+
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool FillTopRow()
+        {
+            var movePiece = false;
 
             for (var x = 0; x < xDim; x++)
             {
                 var pieceBelow = _pieces[x, 0];
+
                 if (pieceBelow.Type != PieceType.EMPTY) continue;
-                
+
                 Destroy(pieceBelow.gameObject);
+
                 var newPiece = Instantiate(_piecePrefabDictionary[PieceType.NORMAL], GetWorldPosition(x, -1),
                     Quaternion.identity);
-                newPiece.transform.parent = transform;
 
+                newPiece.transform.parent = transform;
                 _pieces[x, 0] = newPiece.GetComponent<Piece>();
                 _pieces[x, 0].Init(x, -1, PieceType.NORMAL, this);
                 _pieces[x, 0].MovableComponent.Move(x, 0, fillTime);
-                _pieces[x, 0].ColourComponent.ColourType = (ColourType)Random.Range(0, _pieces[x, 0].ColourComponent.ColourAmount);
+                _pieces[x, 0].ColourComponent.ColourType =
+                    (ColourType)Random.Range(0, _pieces[x, 0].ColourComponent.ColourAmount);
 
                 movePiece = true;
             }
@@ -171,29 +218,62 @@ namespace MatchThreeGame._Project.Scripts
             return movePiece;
         }
 
+
         private static bool IsAdjacent(Piece source, Piece destination)
         {
             return (source.X == destination.X && Mathf.Abs(source.Y - destination.Y) == 1)
-                || (source.Y == destination.Y && Mathf.Abs(source.X - destination.X) == 1);
+                   || (source.Y == destination.Y && Mathf.Abs(source.X - destination.X) == 1);
         }
 
         private void SwapPieces(Piece source, Piece destination)
         {
             if (!source.IsMovable() || !destination.IsMovable()) return;
-            
+
             _pieces[source.X, source.Y] = destination;
             _pieces[destination.X, destination.Y] = source;
-            
+
             if (GetMatch(source, destination.X, destination.Y) != null
-                || GetMatch(destination, source.X, source.Y) != null)
+                || GetMatch(destination, source.X, source.Y) != null
+                || source.Type == PieceType.RAINBOW || destination.Type == PieceType.RAINBOW)
             {
                 var sourceX = source.X;
                 var sourceY = source.Y;
-                
+
                 source.MovableComponent.Move(destination.X, destination.Y, fillTime);
                 destination.MovableComponent.Move(sourceX, sourceY, fillTime);
 
+                if (source.Type == PieceType.RAINBOW && source.IsClearable() && 
+                    destination.IsClearable())
+                {
+                    var clearColour = source.GetComponent<ClearColorPiece>();
+
+                    if (clearColour)
+                        clearColour.Colour = destination.ColourComponent.ColourType;
+                    
+                    ClearPiece(source.X, source.Y);
+                }
+                
+                if (destination.Type == PieceType.RAINBOW && source.IsClearable() && 
+                    destination.IsClearable())
+                {
+                    var clearColour = destination.GetComponent<ClearColorPiece>();
+
+                    if (clearColour)
+                        clearColour.Colour = source.ColourComponent.ColourType;
+                    
+                    ClearPiece(destination.X, destination.Y);
+                }
+                
                 ClearAllValidMatches();
+
+                if (source.Type is PieceType.ROW_CLEAR or PieceType.COLUMN_CLEAR)
+                    ClearPiece(source.X, source.Y);
+                if (destination.Type is PieceType.ROW_CLEAR or PieceType.COLUMN_CLEAR)
+                    ClearPiece(destination.X, destination.Y);
+                
+                source = null;
+                destination = null;
+
                 StartCoroutine(Fill());
             }
             else
@@ -207,7 +287,7 @@ namespace MatchThreeGame._Project.Scripts
         {
             _source = piece;
         }
-        
+
         public void Destination(Piece piece)
         {
             _destination = piece;
@@ -225,21 +305,28 @@ namespace MatchThreeGame._Project.Scripts
             if (!piece.IsColour()) return null;
             var colour = piece.ColourComponent.ColourType;
 
-            var horizontalPieces = new List<Piece>();
-            var verticalPieces = new List<Piece>();
+            var horizontalPieces = GetHorizontalPieces(piece, newX, newY, colour);
+            var verticalPieces = GetVerticalPieces(piece, newX, newY, colour);
             var matchingPieces = new List<Piece>();
-                
-            horizontalPieces.Add(piece);
+
+            if (horizontalPieces.Count >= 3)
+                matchingPieces.AddRange(horizontalPieces);
+
+            if (verticalPieces.Count >= 3)
+                matchingPieces.AddRange(verticalPieces);
+
+            return matchingPieces.Count >= 3 ? matchingPieces : null;
+        }
+
+        private List<Piece> GetHorizontalPieces(Piece piece, int newX, int newY, ColourType colour)
+        {
+            var horizontalPieces = new List<Piece> { piece };
+
             for (var dir = 0; dir <= 1; dir++)
             {
                 for (var xOffset = 1; xOffset < xDim; xOffset++)
                 {
-                    int x;
-
-                    if (dir == 0)
-                        x = newX - xOffset;
-                    else
-                        x = newX + xOffset;
+                    var x = (dir == 0) ? newX - xOffset : newX + xOffset;
 
                     if (x < 0 || x >= xDim)
                         break;
@@ -251,59 +338,18 @@ namespace MatchThreeGame._Project.Scripts
                 }
             }
 
-            if (horizontalPieces.Count >= 3)
-                matchingPieces.AddRange(horizontalPieces);
+            return horizontalPieces;
+        }
 
-            if (horizontalPieces.Count >= 3)
-            {
-                foreach (var t in horizontalPieces)
-                {
-                    for (var dir = 0; dir < 1; dir++)
-                    {
-                        for (var yOffset = 1; yOffset < yDim; yOffset++)
-                        {
-                            int y;
+        private List<Piece> GetVerticalPieces(Piece piece, int newX, int newY, ColourType colour)
+        {
+            var verticalPieces = new List<Piece> { piece };
 
-                            if (dir == 0)
-                                y = newY - yOffset;
-                            else
-                                y = newY + yOffset;
-
-                            if (y < 0 || y >= yDim) break;
-
-                            if (_pieces[t.X, y].IsColour()
-                                && _pieces[t.X, y].ColourComponent.ColourType == colour)
-                                verticalPieces.Add(_pieces[t.X, y]);
-                            else
-                                break;
-                        }
-                    }
-                    if (verticalPieces.Count < 2)
-                        verticalPieces.Clear();
-                    else
-                    {
-                        matchingPieces.AddRange(verticalPieces);
-                        break;
-                    }
-                }
-            }
-
-            if (matchingPieces.Count >= 3)
-                return matchingPieces;
-                
-            horizontalPieces.Clear();
-            verticalPieces.Clear();
-            verticalPieces.Add(piece);
             for (var dir = 0; dir <= 1; dir++)
             {
                 for (var yOffset = 1; yOffset < yDim; yOffset++)
                 {
-                    int y;
-
-                    if (dir == 0)
-                        y = newY - yOffset;
-                    else
-                        y = newY + yOffset;
+                    var y = (dir == 0) ? newY - yOffset : newY + yOffset;
 
                     if (y < 0 || y >= yDim)
                         break;
@@ -314,44 +360,8 @@ namespace MatchThreeGame._Project.Scripts
                         break;
                 }
             }
-                
-            if (verticalPieces.Count >= 3)
-                matchingPieces.AddRange(verticalPieces);
-                
-            if (verticalPieces.Count >= 3)
-            {
-                for (var i = 0; i < verticalPieces.Count; i++)
-                {
-                    for (var dir = 0; dir < 1; dir++)
-                    {
-                        for (var xOffset = 1; xOffset < xDim; xOffset++)
-                        {
-                            int x;
 
-                            if (dir == 0)
-                                x = newX - xOffset;
-                            else
-                                x = newX + xOffset;
-
-                            if (x < 0 || x >= xDim) break;
-
-                            if (_pieces[x, verticalPieces[i].Y].IsColour()
-                                && _pieces[x, verticalPieces[i].Y].ColourComponent.ColourType == colour)
-                                verticalPieces.Add(_pieces[x, verticalPieces[i].Y]);
-                            else
-                                break;
-                        }
-                    }
-                    if (horizontalPieces.Count < 2)
-                        horizontalPieces.Clear();
-                    else
-                    {
-                        matchingPieces.AddRange(horizontalPieces);
-                        break;
-                    }
-                }
-            }
-            return matchingPieces.Count >= 3 ? matchingPieces : null;
+            return verticalPieces;
         }
 
         private bool ClearAllValidMatches()
@@ -366,23 +376,131 @@ namespace MatchThreeGame._Project.Scripts
                     var match = GetMatch(_pieces[x, y], x, y);
 
                     if (match == null) continue;
-                    foreach (var t in match.Where(t => ClearPiece(t.X, t.Y)))
-                        needsRefill = true;
+                    var specialPieceType = DetermineSpecialPieceType(match);
+                    var specialPiecePosition = DetermineSpecialPiecePosition(match, specialPieceType);
+
+                    ProcessMatch(match, specialPiecePosition, ref needsRefill, specialPieceType);
                 }
             }
 
             return needsRefill;
         }
 
+        private void ProcessMatch(List<Piece> match, (int, int) specialPiecePosition, ref bool needsRefill,
+            PieceType specialPieceType)
+        {
+            foreach (var t in match.Where(t => ClearPiece(t.X, t.Y)))
+            {
+                needsRefill = true;
+
+                if (IsSpecialPiecePosition(t.X, t.Y, specialPiecePosition))
+                    specialPiecePosition = (t.X, t.Y);
+            }
+
+            if (specialPieceType == PieceType.COUNT) return;
+            Destroy(_pieces[specialPiecePosition.Item1, specialPiecePosition.Item2]);
+            var newPiece = SpawnNewPiece(specialPiecePosition.Item1, specialPiecePosition.Item2, specialPieceType);
+
+            TransferColourIfNecessary(newPiece, match);
+        }
+
+        private static bool IsSpecialPiecePosition(int x, int y, (int, int) specialPiecePosition)
+        {
+            return x == specialPiecePosition.Item1 && y == specialPiecePosition.Item2;
+        }
+
+        private PieceType DetermineSpecialPieceType(List<Piece> match)
+        {
+            if (match.Count != 4) return match.Count == 5 ? PieceType.RAINBOW : PieceType.COUNT;
+            if (_source == null || _destination == null)
+                return (PieceType)Random.Range((int)PieceType.ROW_CLEAR, (int)PieceType.COLUMN_CLEAR);
+
+            return _source.Y == _destination.Y ? PieceType.ROW_CLEAR : PieceType.COLUMN_CLEAR;
+        }
+
+    private static (int, int) DetermineSpecialPiecePosition(List<Piece> match, PieceType specialPieceType)
+        {
+            if (specialPieceType == PieceType.COUNT) return (0, 0);
+
+            var randomPiece = match[Random.Range(0, match.Count)];
+            return (randomPiece.X, randomPiece.Y);
+        }
+
+        private static void TransferColourIfNecessary(Piece newPiece, List<Piece> match)
+        {
+            if (newPiece.Type is PieceType.ROW_CLEAR or PieceType.COLUMN_CLEAR
+                && newPiece.IsColour() && match[0].IsColour())
+            {
+                newPiece.ColourComponent.ColourType = match[0].ColourComponent.ColourType;
+            }
+            else if (newPiece.Type == PieceType.RAINBOW && newPiece.IsColour())
+            {
+                newPiece.ColourComponent.ColourType = ColourType.ANY;
+            }
+        }
+
+
         private bool ClearPiece(int x, int y)
         {
             if (!_pieces[x, y].IsClearable() || _pieces[x, y].ClearableComponent.IsBeingCleared) return false;
-            
+
             _pieces[x, y].ClearableComponent.Clear();
-            SpawnNewPiece(x, y, PieceType.EMPTY);
+            SpawnNewEmptyPiece(x, y);
 
+            ClearObstacles(x, y);
             return true;
+        }
 
+        private void ClearObstacles(int x, int y)
+        {
+            ClearAdjacentObstacles(x, y, 1, 0);
+            ClearAdjacentObstacles(x, y, 0, 1);
+        }
+
+        private void ClearAdjacentObstacles(int x, int y, int xOffset, int yOffset)
+        {
+            for (var adjacent = -1; adjacent <= 1; adjacent++)
+            {
+                if (adjacent == 0) continue;
+
+                var adjacentX = x + adjacent * xOffset;
+                var adjacentY = y + adjacent * yOffset;
+
+                if (IsOutOfBounds(adjacentX, adjacentY) || !IsClearableObstacle(adjacentX, adjacentY)) continue;
+
+                _pieces[adjacentX, adjacentY].ClearableComponent.Clear();
+                SpawnNewEmptyPiece(adjacentX, adjacentY);
+            }
+        }
+
+        private bool IsOutOfBounds(int x, int y)
+        {
+            return x < 0 || x >= xDim || y < 0 || y >= yDim;
+        }
+
+        private bool IsClearableObstacle(int x, int y)
+        {
+            return _pieces[x, y].Type == PieceType.OBSTACLE && _pieces[x, y].IsClearable();
+        }
+
+        private void SpawnNewEmptyPiece(int x, int y)
+        {
+            SpawnNewPiece(x, y, PieceType.EMPTY);
+        }
+
+        public void ClearColour(ColourType colour)
+        {
+            for (var x = 0; x < xDim; x++)
+            {
+                for (var y = 0; y < yDim; y++)
+                {
+                    if (_pieces[x, y].IsColour() && (_pieces[x, y].ColourComponent.ColourType == colour
+                        || colour == ColourType.ANY))
+                    {
+                        ClearPiece(x, y);
+                    }
+                }
+            }
         }
     }
 }

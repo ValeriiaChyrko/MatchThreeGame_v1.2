@@ -5,6 +5,9 @@
         NORMAL,
         EMPTY,
         OBSTACLE,
+        ROW_CLEAR,
+        COLUMN_CLEAR,
+        RAINBOW,
         COUNT,
     }
 }
