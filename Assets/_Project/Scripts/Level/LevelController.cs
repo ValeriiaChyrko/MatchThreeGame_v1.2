@@ -12,8 +12,8 @@ namespace MatchThreeGame._Project.Scripts.Level
         [SerializeField] private int scoreTwoStar;
         [SerializeField] private int scoreThreeStar;
         
-        public LevelType Type { get; private set; }
-        public LevelType Score { get; private set; }
+        public LevelType Type { get; set; }
+        public LevelType Score { get; set; }
 
         public virtual void GameWin()
         {
