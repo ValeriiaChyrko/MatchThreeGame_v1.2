@@ -17,6 +17,7 @@ namespace MatchThreeGame._Project.Scripts.GridPiece
 
         public virtual void Clear()
         {
+            Piece.GridRef.level.OnPieceCleared(Piece);
             IsBeingCleared = true;
             StartCoroutine(ClearCoroutine());
         }

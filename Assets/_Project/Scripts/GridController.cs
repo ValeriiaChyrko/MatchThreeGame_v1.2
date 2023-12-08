@@ -4,7 +4,7 @@ using System.Linq;
 using JetBrains.Annotations;
 using MatchThreeGame._Project.Scripts.Enums;
 using MatchThreeGame._Project.Scripts.GridPiece;
-using Unity.VisualScripting;
+using MatchThreeGame._Project.Scripts.Level;
 using UnityEngine;
 
 namespace MatchThreeGame._Project.Scripts
@@ -16,16 +16,20 @@ namespace MatchThreeGame._Project.Scripts
         [SerializeField] private float fillTime;
 
         [SerializeField] private PiecePrefab[] piecePrefabs;
+        [SerializeField] private PiecePosition[] piecesPositions;
         [SerializeField] private GameObject backgroundPrefab;
+        
+        [SerializeField] public LevelController level;
 
         private Dictionary<PieceType, GameObject> _piecePrefabDictionary;
         private Piece[,] _pieces;
         private bool _inverse;
+        private bool _gameOver;
 
         private Piece _source;
         private Piece _destination;
 
-        private void Start()
+        private void Awake()
         {
             _piecePrefabDictionary = new Dictionary<PieceType, GameObject>();
 
@@ -33,18 +37,22 @@ namespace MatchThreeGame._Project.Scripts
                 _piecePrefabDictionary.TryAdd(t.type, t.prefab);
 
             for (var i = 0; i < xDim; i++)
-            {
                 for (var j = 0; j < yDim; j++)
                 {
                     var background = Instantiate(backgroundPrefab, GetWorldPosition(i, j), Quaternion.identity);
                     background.transform.parent = transform;
                 }
-            }
 
             _pieces = new Piece[xDim, yDim];
+            
+            foreach (var t in piecesPositions)
+                if (t.x >= 0 && t.x < xDim && t.y >= 0 && t.y < yDim)
+                    SpawnNewPiece(t.x, t.y, t.type);
+
             for (var i = 0; i < xDim; i++)
-            for (var j = 0; j < yDim; j++)
-                SpawnNewEmptyPiece(i, j);
+                for (var j = 0; j < yDim; j++)
+                    if (_pieces[i, j] == null)
+                        SpawnNewEmptyPiece(i, j);
 
             StartCoroutine(Fill());
         }
@@ -80,13 +88,6 @@ namespace MatchThreeGame._Project.Scripts
 
                 if (!ClearAllValidMatches()) break;
             }
-            
-            Destroy(_pieces[2, 2].gameObject);
-            SpawnNewPiece(2, 2, PieceType.OBSTACLE);
-            Destroy(_pieces[3, 3].gameObject);
-            SpawnNewPiece(3, 3, PieceType.RAINBOW);
-            Destroy(_pieces[3, 4].gameObject);
-            SpawnNewPiece(3, 4, PieceType.RAINBOW);
         }
 
         private bool FillStep()
@@ -227,6 +228,7 @@ namespace MatchThreeGame._Project.Scripts
 
         private void SwapPieces(Piece source, Piece destination)
         {
+            if (_gameOver) return;
             if (!source.IsMovable() || !destination.IsMovable()) return;
 
             _pieces[source.X, source.Y] = destination;
@@ -275,6 +277,7 @@ namespace MatchThreeGame._Project.Scripts
                 destination = null;
 
                 StartCoroutine(Fill());
+                level.OnMove();
             }
             else
             {
@@ -446,43 +449,10 @@ namespace MatchThreeGame._Project.Scripts
 
             _pieces[x, y].ClearableComponent.Clear();
             SpawnNewEmptyPiece(x, y);
-
-            ClearObstacles(x, y);
+            
             return true;
         }
-
-        private void ClearObstacles(int x, int y)
-        {
-            ClearAdjacentObstacles(x, y, 1, 0);
-            ClearAdjacentObstacles(x, y, 0, 1);
-        }
-
-        private void ClearAdjacentObstacles(int x, int y, int xOffset, int yOffset)
-        {
-            for (var adjacent = -1; adjacent <= 1; adjacent++)
-            {
-                if (adjacent == 0) continue;
-
-                var adjacentX = x + adjacent * xOffset;
-                var adjacentY = y + adjacent * yOffset;
-
-                if (IsOutOfBounds(adjacentX, adjacentY) || !IsClearableObstacle(adjacentX, adjacentY)) continue;
-
-                _pieces[adjacentX, adjacentY].ClearableComponent.Clear();
-                SpawnNewEmptyPiece(adjacentX, adjacentY);
-            }
-        }
-
-        private bool IsOutOfBounds(int x, int y)
-        {
-            return x < 0 || x >= xDim || y < 0 || y >= yDim;
-        }
-
-        private bool IsClearableObstacle(int x, int y)
-        {
-            return _pieces[x, y].Type == PieceType.OBSTACLE && _pieces[x, y].IsClearable();
-        }
-
+        
         private void SpawnNewEmptyPiece(int x, int y)
         {
             SpawnNewPiece(x, y, PieceType.EMPTY);
@@ -501,6 +471,11 @@ namespace MatchThreeGame._Project.Scripts
                     }
                 }
             }
+        }
+
+        public void GameOver()
+        {
+            _gameOver = true;
         }
     }
 }
