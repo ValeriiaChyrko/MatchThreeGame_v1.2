@@ -1,7 +1,5 @@
-﻿using System;
-using MatchThreeGame._Project.Scripts.Enums;
+﻿using MatchThreeGame._Project.Scripts.Enums;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace MatchThreeGame._Project.Scripts.Level
 {
@@ -20,8 +18,10 @@ namespace MatchThreeGame._Project.Scripts.Level
         {
             Type = LevelType.TIMER;
             
-            Debug.Log("Time: " + timeInSeconds + " seconds." +
-                      "Target score " + TargetScore);
+            levelHUD.SetLevelType(Type);
+            levelHUD.SetScore((int)Score);
+            levelHUD.SetTarget(TargetScore);
+            levelHUD.SetRemaining($"{timeInSeconds / 60}:{timeInSeconds % 60:00}");
         }
 
         private void Update()
@@ -29,7 +29,8 @@ namespace MatchThreeGame._Project.Scripts.Level
             if (_isTimeOut) return;
             
             _timer += Time.deltaTime;
-            
+            levelHUD.SetRemaining($"{Mathf.Max(0, timeInSeconds - _timer) / 60:0}:{Mathf.Max(0, timeInSeconds - _timer) % 60:00}");
+                
             if (_timer - timeInSeconds <= 0) return;
             
             if (Score >= (LevelType)targetScore)

@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using MatchThreeGame._Project.Scripts.Enums;
 using MatchThreeGame._Project.Scripts.GridPiece;
 using MatchThreeGame._Project.Scripts.Level;
+using MatchThreeGame._Project.Scripts.UI;
 using UnityEngine;
 
 namespace MatchThreeGame._Project.Scripts
@@ -20,11 +21,14 @@ namespace MatchThreeGame._Project.Scripts
         [SerializeField] private GameObject backgroundPrefab;
         
         [SerializeField] public LevelController level;
+        [SerializeField] public GameOverScreen GameOverScreen;
 
         private Dictionary<PieceType, GameObject> _piecePrefabDictionary;
         private Piece[,] _pieces;
         private bool _inverse;
         private bool _gameOver;
+
+        public bool IsFilling { get; private set; }
 
         private Piece _source;
         private Piece _destination;
@@ -76,6 +80,7 @@ namespace MatchThreeGame._Project.Scripts
 
         private IEnumerator Fill()
         {
+            IsFilling = true;
             while (true)
             {
                 yield return new WaitForSeconds(fillTime * 2.0f);
@@ -88,6 +93,8 @@ namespace MatchThreeGame._Project.Scripts
 
                 if (!ClearAllValidMatches()) break;
             }
+
+            IsFilling = false;
         }
 
         private bool FillStep()

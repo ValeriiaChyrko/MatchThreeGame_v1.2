@@ -1,5 +1,4 @@
-﻿using System;
-using MatchThreeGame._Project.Scripts.Enums;
+﻿using MatchThreeGame._Project.Scripts.Enums;
 using UnityEngine;
 
 namespace MatchThreeGame._Project.Scripts.Level
@@ -18,14 +17,16 @@ namespace MatchThreeGame._Project.Scripts.Level
         {
             Type = LevelType.MOVES;
             
-            Debug.Log("Number of moves " + MovesAmount +
-                      "Target score " + TargetScore);
+            levelHUD.SetLevelType(Type);
+            levelHUD.SetScore((int)Score);
+            levelHUD.SetTarget(TargetScore);
+            levelHUD.SetRemaining(movesAmount);
         }
 
         public override void OnMove()
         {
             _usedMovesAmount++;
-            Debug.Log("Moves remaining " + (movesAmount - _usedMovesAmount));
+            levelHUD.SetRemaining((movesAmount - _usedMovesAmount));
             
             if (movesAmount - _usedMovesAmount != 0) return;
             
