@@ -20,6 +20,8 @@ namespace MatchThreeGame._Project.Scripts
         [SerializeField] private PiecePosition[] piecesPositions;
         [SerializeField] private GameObject backgroundPrefab;
         
+        [SerializeField] private GameObject explosion;
+        
         [SerializeField] public LevelController level;
 
         private Dictionary<PieceType, GameObject> _piecePrefabDictionary;
@@ -283,11 +285,6 @@ namespace MatchThreeGame._Project.Scripts
                 
                 ClearAllValidMatches();
 
-                if (source.Type is PieceType.ROW_CLEAR or PieceType.COLUMN_CLEAR)
-                    ClearPiece(source.X, source.Y);
-                if (destination.Type is PieceType.ROW_CLEAR or PieceType.COLUMN_CLEAR)
-                    ClearPiece(destination.X, destination.Y);
-
                 StartCoroutine(Fill());
                 level.OnMove();
             }
@@ -417,7 +414,7 @@ namespace MatchThreeGame._Project.Scripts
             Destroy(_pieces[specialPiecePosition.Item1, specialPiecePosition.Item2]);
             var newPiece = SpawnNewPiece(specialPiecePosition.Item1, specialPiecePosition.Item2, specialPieceType);
 
-            TransferColourIfNecessary(newPiece, match);
+            TransferColourIfNecessary(newPiece);
         }
 
         private static bool IsSpecialPiecePosition(int x, int y, (int, int) specialPiecePosition)
@@ -425,16 +422,12 @@ namespace MatchThreeGame._Project.Scripts
             return x == specialPiecePosition.Item1 && y == specialPiecePosition.Item2;
         }
 
-        private PieceType DetermineSpecialPieceType(List<Piece> match)
-        {
-            if (match.Count != 4) return match.Count == 5 ? PieceType.RAINBOW : PieceType.COUNT;
-            if (_source == null || _destination == null)
-                return (PieceType)Random.Range((int)PieceType.ROW_CLEAR, (int)PieceType.COLUMN_CLEAR);
-
-            return _source.Y == _destination.Y ? PieceType.ROW_CLEAR : PieceType.COLUMN_CLEAR;
+        private PieceType DetermineSpecialPieceType(ICollection match)
+        { 
+            return match.Count == 5 ? PieceType.RAINBOW : PieceType.COUNT;
         }
 
-    private static (int, int) DetermineSpecialPiecePosition(List<Piece> match, PieceType specialPieceType)
+        private static (int, int) DetermineSpecialPiecePosition(List<Piece> match, PieceType specialPieceType)
         {
             if (specialPieceType == PieceType.COUNT) return (0, 0);
 
@@ -442,17 +435,10 @@ namespace MatchThreeGame._Project.Scripts
             return (randomPiece.X, randomPiece.Y);
         }
 
-        private static void TransferColourIfNecessary(Piece newPiece, List<Piece> match)
+        private static void TransferColourIfNecessary(Piece newPiece)
         {
-            if (newPiece.Type is PieceType.ROW_CLEAR or PieceType.COLUMN_CLEAR
-                && newPiece.IsColour() && match[0].IsColour())
-            {
-                newPiece.ColourComponent.ColourType = match[0].ColourComponent.ColourType;
-            }
-            else if (newPiece.Type == PieceType.RAINBOW && newPiece.IsColour())
-            {
+            if (newPiece.Type == PieceType.RAINBOW && newPiece.IsColour())
                 newPiece.ColourComponent.ColourType = ColourType.ANY;
-            }
         }
 
 
@@ -460,6 +446,7 @@ namespace MatchThreeGame._Project.Scripts
         {
             if (!_pieces[x, y].IsClearable() || _pieces[x, y].ClearableComponent.IsBeingCleared) return false;
 
+            ExplodeVFX(x, y);
             _pieces[x, y].ClearableComponent.Clear();
             SpawnNewEmptyPiece(x, y);
             
@@ -484,6 +471,12 @@ namespace MatchThreeGame._Project.Scripts
                     }
                 }
             }
+        }
+        
+        private void ExplodeVFX(int x, int y) {
+            var fx = Instantiate(explosion, transform);
+            fx.transform.position = GetWorldPosition(x, y);
+            Destroy(fx, 5f);
         }
 
         public void GameOver()

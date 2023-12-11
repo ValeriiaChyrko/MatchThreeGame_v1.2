@@ -201,7 +201,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   colourSprite:
-  - colour: 6
+  - colour: 0
     sprite: {fileID: 21300000, guid: d2a1219f01ad7474fb1405693af9a914, type: 3}
 --- !u!114 &2977302206204668112
 MonoBehaviour:
