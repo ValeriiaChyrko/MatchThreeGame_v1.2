@@ -2,10 +2,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
+using MatchThreeGame._Project.Scripts.Audio;
 using MatchThreeGame._Project.Scripts.Enums;
 using MatchThreeGame._Project.Scripts.GridPiece;
 using MatchThreeGame._Project.Scripts.Level;
-using MatchThreeGame._Project.Scripts.UI;
 using UnityEngine;
 
 namespace MatchThreeGame._Project.Scripts
@@ -21,12 +21,13 @@ namespace MatchThreeGame._Project.Scripts
         [SerializeField] private GameObject backgroundPrefab;
         
         [SerializeField] public LevelController level;
-        [SerializeField] public GameOverScreen GameOverScreen;
 
         private Dictionary<PieceType, GameObject> _piecePrefabDictionary;
         private Piece[,] _pieces;
         private bool _inverse;
         private bool _gameOver;
+
+        private AudioManager _audioManager;
 
         public bool IsFilling { get; private set; }
 
@@ -35,6 +36,7 @@ namespace MatchThreeGame._Project.Scripts
 
         private void Awake()
         {
+            _audioManager = GetComponent<AudioManager>();
             _piecePrefabDictionary = new Dictionary<PieceType, GameObject>();
 
             foreach (var t in piecePrefabs)
@@ -149,6 +151,7 @@ namespace MatchThreeGame._Project.Scripts
                 movePiece |= TryMovePieceDiagonally(piece, x, y);
             }
 
+            _audioManager.PlayWoosh();
             return movePiece;
         }
 
@@ -236,7 +239,11 @@ namespace MatchThreeGame._Project.Scripts
         private void SwapPieces(Piece source, Piece destination)
         {
             if (_gameOver) return;
-            if (!source.IsMovable() || !destination.IsMovable()) return;
+            if (!source.IsMovable() || !destination.IsMovable())
+            {
+                _audioManager.PlayNoMatch();
+                return;
+            }
 
             _pieces[source.X, source.Y] = destination;
             _pieces[destination.X, destination.Y] = source;
@@ -250,6 +257,7 @@ namespace MatchThreeGame._Project.Scripts
 
                 source.MovableComponent.Move(destination.X, destination.Y, fillTime);
                 destination.MovableComponent.Move(sourceX, sourceY, fillTime);
+                _audioManager.PlayMatch();
 
                 if (source.Type == PieceType.RAINBOW && source.IsClearable() && 
                     destination.IsClearable())
@@ -279,9 +287,6 @@ namespace MatchThreeGame._Project.Scripts
                     ClearPiece(source.X, source.Y);
                 if (destination.Type is PieceType.ROW_CLEAR or PieceType.COLUMN_CLEAR)
                     ClearPiece(destination.X, destination.Y);
-                
-                source = null;
-                destination = null;
 
                 StartCoroutine(Fill());
                 level.OnMove();
@@ -290,6 +295,7 @@ namespace MatchThreeGame._Project.Scripts
             {
                 _pieces[source.X, source.Y] = source;
                 _pieces[destination.X, destination.Y] = destination;
+                _audioManager.PlayNoMatch();
             }
         }
 
@@ -482,6 +488,7 @@ namespace MatchThreeGame._Project.Scripts
 
         public void GameOver()
         {
+            _audioManager.PlayPop();
             _gameOver = true;
         }
     }

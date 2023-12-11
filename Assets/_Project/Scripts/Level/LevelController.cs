@@ -30,32 +30,29 @@ namespace MatchThreeGame._Project.Scripts.Level
             levelHUD.SetScore((int)Score);
         }
 
-        protected virtual void GameWin()
+        protected void GameWin()
         {
             _isWin = true;
             grid.GameOver();
             StartCoroutine(WaitForGridFill());
         }
 
-        protected virtual void GameLose()
+        protected void GameLose()
         {
             _isWin = false;
             grid.GameOver();
             StartCoroutine(WaitForGridFill());
         }
         
-        public virtual void OnMove()
-        {
-            Debug.Log("Player swap!");
-        }
+        public virtual void OnMove() { }
         
-        public virtual void OnPieceCleared(Piece piece)
+        public void OnPieceCleared(Piece piece)
         {
             Score += piece.Score;
             levelHUD.SetScore((int)Score);
         }
 
-        protected IEnumerator WaitForGridFill()
+        private IEnumerator WaitForGridFill()
         {
             while (grid.IsFilling)
                 yield return 0;

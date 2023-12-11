@@ -1,7 +1,6 @@
 ﻿using System.Collections;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace MatchThreeGame._Project.Scripts.UI
@@ -63,12 +62,12 @@ namespace MatchThreeGame._Project.Scripts.UI
 
         public void OnReplayClicked()
         {
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            ScenesManager.LoadCurrentLevel();
         }
         
         public void OnNextClicked()
         {
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            ScenesManager.LoadLevelSelectorMenu();
         }
     }
 }

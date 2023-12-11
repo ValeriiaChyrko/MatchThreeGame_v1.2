@@ -1,13 +1,14 @@
 ﻿using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace MatchThreeGame._Project.Scripts.UI
+namespace MatchThreeGame._Project.Scripts.UI.Menus
 {
-    public class LevelSelect : MonoBehaviour
+    public class LevelSelectionMenu : MonoBehaviour
     {
         [SerializeField] private ButtonPlayerPrefs[] buttons;
         public void OnButtonPress(string levelName)
         {
+            ScenesManager.CurrentSceneName = levelName;
             SceneManager.LoadScene(levelName);
         }
 

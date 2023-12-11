@@ -2,13 +2,13 @@
 {
     public enum ColourType
     {
+        ANY, 
         YELLOW, 
         GRAY, 
         BROWN, 
         BLUE, 
         PINK, 
         WHITE,
-        ANY, 
         COUNT
     }
 }
